@@ -1,23 +1,16 @@
 package org.firstinspires.ftc.teamcode.drive;
 
 import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.acmerobotics.roadrunner.control.PIDCoefficients;
-import com.acmerobotics.roadrunner.control.PIDFController;
-import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-@Config
-@TeleOp (name="redTele", group="6455")
-public class redTeleStrafe extends LinearOpMode {
+@TeleOp (name="redTeleV1", group="6455")
+public class redTeleStrafeV1 extends LinearOpMode {
 
     // initialize the drive motors
     private DcMotor FL;
@@ -33,7 +26,7 @@ public class redTeleStrafe extends LinearOpMode {
     // initialize the four-bar servos servos/motors
     private Servo fBarServoR;
     private Servo fBarServoL;
-    private Servo fBarRot;
+
     // initialize the intake servo
     private Servo intake;
 
@@ -50,7 +43,8 @@ public class redTeleStrafe extends LinearOpMode {
         DOWN
     }
     State currState = State.DEFAULT;
-    public void runOpMode() {
+    @Override
+    public void runOpMode() throws InterruptedException {
         // maps all motors and servos to the rev hup config
         FL = hardwareMap.dcMotor.get("FL");
         FR = hardwareMap.dcMotor.get("FR");
@@ -59,7 +53,6 @@ public class redTeleStrafe extends LinearOpMode {
 
         fBarServoR = hardwareMap.servo.get("fBarServoR");
         fBarServoL = hardwareMap.servo.get("fBarServoL");
-        fBarRot = hardwareMap.servo.get("fBarRot");
 
         liftR = hardwareMap.dcMotor.get("liftR");
         liftL = hardwareMap.dcMotor.get("liftL");
@@ -90,7 +83,7 @@ public class redTeleStrafe extends LinearOpMode {
 
         waitForStart();
 
-        while(opModeIsActive()) {
+        while(opModeIsActive()){
             // Drivetrain
             double r = Math.hypot(-gamepad1.left_stick_x, gamepad1.left_stick_y);
             double robotAngle = Math.atan2(gamepad1.left_stick_y, -gamepad1.left_stick_x) - Math.PI / 4;
@@ -106,22 +99,30 @@ public class redTeleStrafe extends LinearOpMode {
             BL.setPower(v3 * 0.5);
             BR.setPower(v4 * 0.5);
 
-            // controller 2 right joystick y-axis moves the lift manually
+            //SET TARGET
+            if(gamepad2.y){
+                target = 400;
+                currState = State.LIFT;
+            }
+            if(gamepad2.a){
+                target = 200;
+                currState = State.LIFT;
+            }
+            if(gamepad2.x){
+                currState = State.DOWN;
+            }
 
-            // i love WOMEN
-            //four bar movement
-            if(gamepad2.right_bumper){
-                fBarServoL.setPosition(.9);
-                fBarServoR.setPosition(.1);
-                fBarRot.setPosition(.4);
+            //Fine tuned control
+            if(gamepad2.left_stick_y != 0) {
+                liftR.setPower(-.7 * gamepad2.left_stick_y);
+                liftL.setPower(-.7 * gamepad2.left_stick_y);
             }
-            else {if(gamepad2.right_trigger!=0){
-                fBarServoL.setPosition(0.075);
-                fBarServoR.setPosition(.94);
-                fBarRot.setPosition(0.9);
+            else if(gamepad2.left_stick_y == 0){
+                liftR.setPower(kG);
+                liftL.setPower(kG);
             }
-            }
-            //intake movement
+
+            //Intake movement
             if(gamepad2.left_trigger!=0){
                 intake.setPosition(.3);
             }
@@ -134,82 +135,37 @@ public class redTeleStrafe extends LinearOpMode {
             if (gamepad2.dpad_up){
                 intake.setPosition(.45);
             }
-            if(gamepad2.left_stick_y!=0) {
-                currState = State.MANUAL;
-            }
             switch (currState){
-                case MANUAL:{
-                    liftR.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-                    liftL.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-
-                    liftR.setPower(-1 * gamepad2.left_stick_y);
-                    liftL.setPower(-1 * gamepad2.left_stick_y);
-                    if(gamepad2.left_stick_y == 0){
-                        currState = State.DEFAULT;
-                    }
-                    break;
-                }
-                case DEFAULT:{
-                    if(gamepad2.y){
-                        liftR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-                        liftL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
-                        liftL.setTargetPosition(500);
-                        liftR.setTargetPosition(500);
-
-                        liftR.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-                        liftL.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-
-                        liftR.setPower(-0.7);
-                        liftL.setPower(-0.7);
-                        currState = State.LIFT;
-                    }
-                    else{
-                        liftR.setPower(kG);
-                        liftL.setPower(kG);
-                    }
-                    break;
-                }
                 case LIFT:{
-                    if(liftL.getCurrentPosition() > liftL.getTargetPosition() && liftR.getCurrentPosition() > liftL.getTargetPosition()){
-                        fBarServoL.setPosition(.95);
-                        fBarServoR.setPosition(.05);
-                        fBarRot.setPosition(.4);
+                    if(Math.abs(liftL.getCurrentPosition() - target) < 20 || Math.abs(liftL.getCurrentPosition() - target) < 20){
                         currState = State.HOLD;
                     }
                     else{
-                        liftL.setPower(-0.7);
-                        liftR.setPower(-0.7);
+                        if(liftL.getCurrentPosition() < target){
+                            liftL.setPower(-0.7);
+                            liftR.setPower(-0.7);
+                        }
+                        else{
+                            liftL.setPower(0.7);
+                            liftR.setPower(0.7);
+                        }
                     }
                     break;
                 }
                 case HOLD:{
                     liftR.setPower(kG);
                     liftL.setPower(kG);
-                    //DROP button goes here
-                    if(gamepad2.x){
-                        currState = State.DOWN;
-                    }
                     break;
                 }
                 case DOWN:{
-                    liftR.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-                    liftL.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-
                     liftR.setPower(downConstant);
                     liftL.setPower(downConstant);
-
-                    if(liftR.getCurrentPosition() < 50 || liftL.getCurrentPosition() < 50){
-                        currState = State.DEFAULT;
-                    }
-                    break;
                 }
             }
-
-            telemetry.addData("Left lift", liftL.getCurrentPosition());
-            telemetry.addData("Right lift", liftR.getCurrentPosition());
+            telemetry.addData("liftL curr", liftL.getCurrentPosition());
+            telemetry.addData("state", currState);
             telemetry.update();
+
         }
     }
 }
-
